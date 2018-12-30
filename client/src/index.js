@@ -4,31 +4,40 @@ import './index.css'
 import 'bootstrap/dist/css/bootstrap.min.css'
 import './animate.css'
 import Square from './Square'
-import ResetButton from './ResetButton'
+import MenuButtons from './MenuButtons'
+import contract from 'truffle-contract'
 
-import TicTacToe from './contracts/SimpleStorage'
-import getWeb3 from "./utils/getWeb3";
+import TicTacToeContract from './contracts/TicTacToe.json'
+import getWeb3 from "./utils/getWeb3"
+
+// let TicTacToe = contract(_TicTacToe)
+
+const STONES = [[0, 0], [0, 1], [0, 2], [1, 0], [1, 1], [1, 2], [2, 0], [2, 1], [2, 2]];
+
 
 class Board extends React.Component {
 
     state = {
+        // web3 相关
+        web3: null,
         accounts: null,
+
+        // 棋盘相关
+        instance: null,
+        board: [['', '', ''], ['', '', ''], ['', '', '']],
         player1: null,
         player2: null,
-        board: null,
-        instance: null,
-        squares: Array(9).fill(null),
-        xIsNext: true,
+        nextPlayer: '',// 该谁下棋
+
         winner: null,
-        full: false,
-        event: {}
+        gameResult: '',
+        event: {},
     }
 
     componentDidMount = async () => {
-        return true
         try {
-
             const web3 = await getWeb3();
+            console.log("currentProvider",web3.currentProvider)
             const accounts = await web3.eth.getAccounts();
             this.setState({web3, accounts});
         } catch (error) {
@@ -37,33 +46,34 @@ class Board extends React.Component {
         }
     };
 
-    createGame = async () => {
-        const {accounts, web3} = this.state;
-        // const networkId = await web3.eth.net.getId();
-        // const deployedNetwork = TicTacToe.networks[networkId];
-        // const instance = new web3.eth.Contract(
-        //     TicTacToe.abi,
-        //     deployedNetwork && deployedNetwork.address,
-        //     from:player1,
-        //     value:web3.utils.toWei(1, 'ether'),
-        // );
-        TicTacToe.new({from: accounts[0], value: web3.utils.toWei(1, 'ether'), gas: 300000})
-            .then(instance => {
-                this.setState({instance})
-            }).catch(error => {
-            console.log("new", error)
-        })
+    onCreateGameClick = async () => {
+        const {accounts} = this.state;
+        const networkId = await getWeb3().eth.net.getId();
+        const deployedNetwork = TicTacToeContract.networks[networkId];
+        const instance = new getWeb3().eth.Contract(
+            TicTacToeContract.abi,
+            deployedNetwork && deployedNetwork.address,
+        );
+
+        // TicTacToe.new({from: accounts[0], value: web3.utils.toWei("1", 'ether'), gas: 300000})
+        //     .then(instance => {
+        //         this.setState({instance})
+        //     }).catch(error => {
+        //     console.log("new", error)
+        // })
     }
 
 
-    joinGame = () => {
+    onJoinGameClick = () => {
         let gameAddress = prompt("请输入游戏地址")
         if (gameAddress === "") {
             return
         }
-        let {accounts} = this.state;
-        TicTacToe.at(gameAddress)
+        let {accounts, web3} = this.state;
+
+        TicTacToeContract.at(gameAddress)
             .then(instance => {
+                this.setState({instance})
                 return instance.methods.joinGame.send({
                     from: accounts[0],
                     value: web3.utils.toWei(1, 'ether'),
@@ -72,12 +82,25 @@ class Board extends React.Component {
             })
             .then(result => {
                 console.log(result)
-                this.setState({instance, player2: player})
+                this.setState({player2: accounts[0]})
             })
             .catch(error => {
                 console.error("join", error)
             })
 
+    }
+
+    getBoard = () => {
+        let {instance, accounts} = this.state
+        instance.methods.getBoard.call({from: accounts[0]})
+            .then(board => {
+                // 更新游戏棋盘
+                this.setState({board})
+                console.log("getBoard", board)
+            })
+            .catch(error => {
+                console.error("getBoard", error)
+            })
     }
 
     handleOnClick(index, turn) {
@@ -94,32 +117,20 @@ class Board extends React.Component {
         });
 
         if (winner !== null) {
-            document.getElementById('titlePemenang').className = "animated rotateIn";
+            document.getElementById('gameResult').className = "animated rotateIn";
         }
     }
 
-    setStone = (event) => {
-        console.log(event)
+    onStoneClick = (stone) => {
+
+        console.log("onStoneClick", stone)
         let {instance, accounts} = this.state
-        instance.methods.setStone(event.x, event.y).send({from: accounts[0]})
+        instance.methods.setStone(stone[0], stone[1]).send({from: accounts[0]})
             .then(result => {
                 console.log("setStone", result)
             })
             .catch(error => {
                 console.error("setStone", error)
-            })
-    }
-
-    getBoard = () => {
-        let {instance, accounts} = this.state
-        instance.methods.getBoard.call({from: accounts[0]})
-            .then(board => {
-                // 更新游戏棋盘
-                this.setState({board})
-                console.log("getBoard", result)
-            })
-            .catch(error => {
-                console.error("getBoard", error)
             })
     }
 
@@ -134,6 +145,7 @@ class Board extends React.Component {
         }
         this.setState({gameResult})
     }
+
     registEvent = () => {
         let {instance} = this.state
         // 玩家加入游戏
@@ -167,7 +179,7 @@ class Board extends React.Component {
             }
         })
 
-        // 体现成功
+        // 提现成功
         instance.GameOverWithDraw().watch((error, event) => {
             if (error != null) {
                 console.log(event)
@@ -178,69 +190,38 @@ class Board extends React.Component {
         })
     }
 
-
-    calculateWinner(squares) {
-        const lines = [
-            [0, 1, 2],
-            [3, 4, 5],
-            [6, 7, 8],
-            [0, 3, 6],
-            [1, 4, 7],
-            [2, 5, 8],
-            [0, 4, 8],
-            [2, 4, 6]
-        ];
-
-        for (let i = 0; i < lines.length; i++) {
-            const [a, b, c] = lines[i];
-
-            if (squares[a] !== null && squares[b] !== null && squares[c] !== null) {
-                if (squares[a] === squares[b] && squares[a] === squares[c] && squares[b] === squares[c]) {
-                    return squares[a];
-                }
-            }
-        }
-
-        if (squares.every(function (el) {
-            let arg = el !== null ? true : false;
-            return arg;
-        })) {
-            this.setState({
-                full: true
-            })
-        }
-        ;
-
-        return null;
-    }
-
+    // 重置游戏
     onResetGameClick = () => {
         window.location.reload()
     }
 
+    // 00 01 02
+    // 10 11 12
+    // 20 21 22
     render() {
-
-        // 00 01 02
-        // 10 11 12
-        // 20 21 22
-        const indexSquares = [0, 1, 2, 3, 4, 5, 6, 7, 8];
-
-        var squares = indexSquares.map(function (indexSquare, i) {
+        let {accounts, board, nextPlayer} = this.state
+        let squares = STONES.map((stone, i) => {
             return (<Square
-                value={this.state.squares[i]}
                 key={i}
-                index={i}
-                winner={this.state.winner}
-                xIsNext={this.state.xIsNext}
-                onClick={this.handleOnClick.bind(this)}/>)
-        }, this)
+                stone={stone}
+                board={board}
+                account={accounts == null ? null : accounts[0]}
+                nextPlayer={nextPlayer}
+                onClick={this.onStoneClick}/>)
+        })
 
         return (
             <div>
-                <h1 style={{textAlign: 'center', fontSize: '46px', color: 'rgba(52, 152, 219,1.0)'}}
-                    className="animated flipInY">Tic-Tac-Toe</h1>
-                <h3 style={{textAlign: 'center'}} id="titlePemenang">{this.state.winner !== null ?
-                    <span>Pemenangnya <b>{this.state.winner}</b></span> : ""}</h3>
+                <h1 style={{
+                    textAlign: 'center',
+                    fontSize: '46px',
+                    color: 'rgba(52, 152, 219,1.0)'
+                }}
+                    className="animated flipInY">性感荷官 在线发牌
+                </h1>
+                <h3 style={{textAlign: 'center'}} id="gameResult">
+                    <span>{this.state.gameResult} <b>{this.state.winner}</b></span>
+                </h3>
                 <div className="container animated fadeInUp">
                     <div className="row">
                         <br/>
@@ -248,7 +229,10 @@ class Board extends React.Component {
                     </div>
                 </div>
                 <br/>
-                <ResetButton onClick={this.onResetGameClick}/> : ""}
+                <MenuButtons
+                    onCreateGameClick={this.onCreateGameClick}
+                    onJoinGameClick={this.onJoinGameClick}
+                    onResetGameClick={this.onResetGameClick}/>
             </div>
         )
     }
