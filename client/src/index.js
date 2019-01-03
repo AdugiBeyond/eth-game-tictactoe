@@ -5,133 +5,126 @@ import 'bootstrap/dist/css/bootstrap.min.css'
 import './animate.css'
 import Square from './Square'
 import MenuButtons from './MenuButtons'
-import contract from 'truffle-contract'
-
-import TicTacToeContract from './contracts/TicTacToe.json'
 import getWeb3 from "./utils/getWeb3"
+import contract from 'truffle-contract'
+import _TicTacToe from './contracts/TicTacToe.json'
 
-// let TicTacToe = contract(_TicTacToe)
 
+// 棋盘值
 const STONES = [[0, 0], [0, 1], [0, 2], [1, 0], [1, 1], [1, 2], [2, 0], [2, 1], [2, 2]];
-
+const EMPTY_ADDRESS = "0x0000000000000000000000000000000000000000"
+const GAME_COST = "1"; //1 eth
+let web3 = null
 
 class Board extends React.Component {
 
     state = {
-        // web3 相关
-        web3: null,
-        accounts: null,
+        accounts: null, // 账户
 
         // 棋盘相关
-        instance: null,
+        instance: null, // 游戏实例
         board: [['', '', ''], ['', '', ''], ['', '', '']],
-        player1: null,
-        player2: null,
+        player1: '', // 玩家一，等于创建者
+        player2: '', // 玩家二，
         nextPlayer: '',// 该谁下棋
 
-        winner: null,
-        gameResult: '',
-        event: {},
+        winner: '',
+        gameResult: '', // 游戏结果，
+    }
+
+    getTicTacToe = () => {
+        let TicTacToe = contract(_TicTacToe)
+        TicTacToe.setProvider(web3.currentProvider);
+        return TicTacToe
     }
 
     componentDidMount = async () => {
         try {
-            const web3 = await getWeb3();
-            console.log("currentProvider",web3.currentProvider)
+            web3 = await getWeb3();
+            console.log("currentProvider", web3.currentProvider)
             const accounts = await web3.eth.getAccounts();
-            this.setState({web3, accounts});
+            console.log("accounts", accounts)
+            this.setState({accounts});
         } catch (error) {
             alert(`web3 加载失败`,);
             console.error(error);
         }
-    };
-
-    onCreateGameClick = async () => {
-        const {accounts} = this.state;
-        const networkId = await getWeb3().eth.net.getId();
-        const deployedNetwork = TicTacToeContract.networks[networkId];
-        const instance = new getWeb3().eth.Contract(
-            TicTacToeContract.abi,
-            deployedNetwork && deployedNetwork.address,
-        );
-
-        // TicTacToe.new({from: accounts[0], value: web3.utils.toWei("1", 'ether'), gas: 300000})
-        //     .then(instance => {
-        //         this.setState({instance})
-        //     }).catch(error => {
-        //     console.log("new", error)
-        // })
     }
 
+    componentWillUnmount() {
+        this.unRegistNextPlayerEvent()
+    }
 
-    onJoinGameClick = () => {
+    onCreateGameClick = () => {
+
+        const {accounts} = this.state
+        let TicTacToe = this.getTicTacToe()
+        TicTacToe.new({from: accounts[0], value: web3.utils.toWei(GAME_COST, "ether")})
+            .then(instance => {
+                console.log("instance", instance)
+                this.setState({instance, player1: accounts[0]})
+                this.registEvent()
+                alert("游戏创建成功，邀请好友\n" + instance.address)
+            })
+            .catch(error => {
+                console.log("new TicTacToe", error)
+            })
+    }
+
+    // 加入游戏
+    onJoinGameClick = async () => {
         let gameAddress = prompt("请输入游戏地址")
         if (gameAddress === "") {
             return
         }
-        let {accounts, web3} = this.state;
+        let {accounts} = this.state;
+        let TicTacToe = this.getTicTacToe()
+        try {
+            let instance = await TicTacToe.at(gameAddress)
+            console.log("at", instance == null, instance)
 
-        TicTacToeContract.at(gameAddress)
-            .then(instance => {
-                this.setState({instance})
-                return instance.methods.joinGame.send({
-                    from: accounts[0],
-                    value: web3.utils.toWei(1, 'ether'),
-                    gas: 300000
-                })
+            this.setState({instance})
+            this.registEvent()
+            alert("游戏加载成功，加入赌金立即开始游戏")
+            let result = await instance.joinGame({
+                from: accounts[0],
+                value: web3.utils.toWei(GAME_COST, 'ether')
             })
-            .then(result => {
-                console.log(result)
-                this.setState({player2: accounts[0]})
-            })
-            .catch(error => {
-                console.error("join", error)
-            })
-
-    }
-
-    getBoard = () => {
-        let {instance, accounts} = this.state
-        instance.methods.getBoard.call({from: accounts[0]})
-            .then(board => {
-                // 更新游戏棋盘
-                this.setState({board})
-                console.log("getBoard", board)
-            })
-            .catch(error => {
-                console.error("getBoard", error)
-            })
-    }
-
-    handleOnClick(index, turn) {
-
-        const newSquares = this.state.squares.slice();
-        newSquares[index] = turn;
-
-        var winner = this.calculateWinner(newSquares);
-
-        this.setState({
-            xIsNext: !this.state.xIsNext,
-            squares: newSquares,
-            winner: winner !== null ? winner : this.state.winner
-        });
-
-        if (winner !== null) {
-            document.getElementById('gameResult').className = "animated rotateIn";
+        } catch (e) {
+            console.log("join error", e)
+            this.setState({instance: null})
         }
     }
 
-    onStoneClick = (stone) => {
+    // 更新游戏面板
+    updateBoard = () => {
+        let {instance, accounts} = this.state
+        instance.getBoard.call({from: accounts[0]})
+            .then(board => {
+                this.setState({board})
+                console.log("updateBoard", board)
+            })
+            .catch(error => {
+                console.error("updateBoard", error)
+            })
+    }
 
+    onStoneClick = (stone) => {
         console.log("onStoneClick", stone)
         let {instance, accounts} = this.state
-        instance.methods.setStone(stone[0], stone[1]).send({from: accounts[0]})
+        instance.setPosition(stone[0], stone[1], {from: accounts[0]})
             .then(result => {
                 console.log("setStone", result)
+                // this.handleLog(result.logs)
             })
             .catch(error => {
                 console.error("setStone", error)
             })
+    }
+
+    // 重置游戏
+    onResetGameClick = () => {
+        window.location.reload()
     }
 
     setWinner = (winner) => {
@@ -146,60 +139,94 @@ class Board extends React.Component {
         this.setState({gameResult})
     }
 
+    // 注册事件，监听所有（也可以单独监听）
     registEvent = () => {
+        let {instance, accounts} = this.state
+        instance.allEvents( (err,data)=> {
+            console.log(err,data)
+            let {event, args} = data
+            if (event == "GameStart") {
+                alert("游戏即将开始\n" + "玩家1: " + args.player1 + "\n玩家2: " + args.player2)
+                this.setState({...args})
+            } else if (event == "NextPlayer") {
+                alert("下一个玩家\n" + args.nextPlayer)
+                this.updateBoard()
+                this.setState({...args})
+            } else if (event == "GameOver") {
+                this.setState({...args})
+                alert("GameOver")
+            } else if (event == "Withdraw") {
+                alert("游戏结束\n已向" + args.to + "转入赌金" + args.balance)
+            }
+        })
+    }
+
+    // 下一个玩家，更新页面
+    registNextPlayerEvent = () => {
         let {instance} = this.state
-        // 玩家加入游戏
-        instance.PlayerJoined().watch((error, event) => {
-            if (error != null) {
-                console.log(event)
-            } else {
-                console.error("event", error)
-            }
-        })
-
-        // 下一个玩家
-        instance.NextPlayer().watch((error, event) => {
-            if (error != null) {
-                console.log(event)
-                // 停止 listen joinevent
-            } else {
-                console.error("event", error)
-            }
-        })
-
-        // 游戏结束
-        instance.GameOverWithWin().watch((error, event) => {
-            if (error != null) {
-                console.log(event)
-                this.setState({board: null})
-
-                // stop listen next player event and self
-            } else {
-                console.error("event", error)
-            }
-        })
-
-        // 提现成功
-        instance.GameOverWithDraw().watch((error, event) => {
-            if (error != null) {
-                console.log(event)
-                // stop listen self
+        let nextPlayerEvent = instance.NextPlayer()
+        //  下一个是一个状态 需保存到state
+        this.setState(nextPlayerEvent)
+        event.watch((error, event) => {
+            console.log("event---NextPlayer")
+            if (error == null) {
+                console.log("NextPlayer", event)
             } else {
                 console.error("event", error)
             }
         })
     }
 
-    // 重置游戏
-    onResetGameClick = () => {
-        window.location.reload()
+    // 取消下一个玩家监听
+    unRegistNextPlayerEvent = () => {
+        let {nextPlayerEvent} = this.state
+        if (nextPlayerEvent != null) {
+            nextPlayerEvent.stopWatching()
+        }
+    }
+
+    // 游戏结束事件，只需监听一次
+    registGameOverEvent = () => {
+        let {instance} = this.state
+        let event = instance.GameOver()
+        event.watch((error, event) => {
+            console.log("GameOverEvent", event)
+            if (error == null) {
+                event.stopWatching()
+                this.unRegistNextPlayerEvent()
+            } else {
+                console.error("event", error)
+            }
+        })
+    }
+
+    // 游戏结束提现事件 ，只需一次监听
+    registWithdrawEvent = () => {
+        let {instance} = this.state
+        let event = instance.WithdrawEvent()
+        event.watch((error, event) => {
+            console.log("WithdrawEvent")
+            if (error == null) {
+                alert("有钱到账了")
+                event.stopWatching()
+                console.log("WithDrawEvent", event)
+            } else {
+                console.error("event", error)
+            }
+        })
     }
 
     // 00 01 02
     // 10 11 12
     // 20 21 22
     render() {
-        let {accounts, board, nextPlayer} = this.state
+        let {accounts, board, player1, player2, nextPlayer, instance, winner} = this.state
+        let gameAddress = instance == null ? "" : instance.address
+        console.log("state", this.state)
+        console.log("", instance)
+        if (winner != ''){
+            winner = winner == EMPTY_ADDRESS ? "平局，退回赌金" : "赢家为："+winner
+        }
         let squares = STONES.map((stone, i) => {
             return (<Square
                 key={i}
@@ -211,24 +238,32 @@ class Board extends React.Component {
         })
 
         return (
-            <div>
-                <h1 style={{
-                    textAlign: 'center',
-                    fontSize: '46px',
-                    color: 'rgba(52, 152, 219,1.0)'
-                }}
+            <div style={{textAlign: 'center'}}>
+                {/*标题*/}
+                <h2 style={{fontSize: '42px', color: "red"}}
                     className="animated flipInY">性感荷官 在线发牌
-                </h1>
-                <h3 style={{textAlign: 'center'}} id="gameResult">
-                    <span>{this.state.gameResult} <b>{this.state.winner}</b></span>
-                </h3>
+                </h2>
+                {/* 游戏信息展示*/}
+                <div>
+                    <h5>当前用户:{accounts == null ? "未检测到" : accounts[0]}</h5>
+                    <h5>游戏地址:{gameAddress == "" ? "等待创建" : gameAddress}</h5>
+                    <h5>player1:{player1 == "" ? "等待加入" : player1}</h5>
+                    <h5>player2:{player2 == "" ? "等待加入" : player2}</h5>
+                    <h5>nextPlayer:{player2 == "" ? "游戏未开始" :
+                        <span style={{color: "red"}}>{nextPlayer}</span>}</h5>
+                    <h3 id="gameResult">
+                        <span style={{fontSize: '32px', color: "red"}}>
+                            <b>{winner}</b></span>
+                    </h3>
+                </div>
+                {/*棋盘*/}
                 <div className="container animated fadeInUp">
                     <div className="row">
-                        <br/>
                         <div className="col-xs-12">{squares}</div>
                     </div>
                 </div>
                 <br/>
+
                 <MenuButtons
                     onCreateGameClick={this.onCreateGameClick}
                     onJoinGameClick={this.onJoinGameClick}

@@ -1,7 +1,7 @@
 import React from 'react';
 
+const EMPTY_ADDRESS = "0x0000000000000000000000000000000000000000"
 export default class Square extends React.Component {
-
 
     constructor(props) {
         super(props)
@@ -17,6 +17,10 @@ export default class Square extends React.Component {
     }
 
 
+    componentWillReceiveProps(nextProps) {
+        this.state = {...nextProps}
+    }
+
     // 状态变量未Object,可以不写默认值，
     state = {}
 
@@ -28,7 +32,6 @@ export default class Square extends React.Component {
             return
         }
 
-        console.log(this.state)
         this.state.onClick(this.state.stone);
         // 设置 修改
         event.target.className += " animated rubberBand square-container-active";
@@ -37,15 +40,16 @@ export default class Square extends React.Component {
     // 下棋校验，返回错误信息，没有返回空
     mustCheck() {
         let {account, nextPlayer} = this.state
+        console.log(this.state)
         if (this.state.account == null) {
             return "用户未登录"
-
         }
+
         if (nextPlayer == '') {
             return "游戏未开始"
         }
 
-        if (account != nextPlayer) {
+        if (account.toLowerCase() != nextPlayer.toLowerCase()) {
             return "等待对方下子"
         }
         if (this.getHtmlValue() != '') {
@@ -56,18 +60,19 @@ export default class Square extends React.Component {
 
     // 获取该位置的文本显示
     getHtmlValue() {
-        let {stone, board, account} = this.state
+        let {stone, board, account,nextPlayer} = this.state
         // 获取该位置的地址值
         let x = stone[0]
         let y = stone[1]
         let stoneValue = board[x][y]
 
         // 未登录显示空
-        if (account == null) {
+        if (account == null||nextPlayer==""||stoneValue==EMPTY_ADDRESS||stoneValue==""){
             return ""
         }
+        console.log(x,y,stoneValue==EMPTY_ADDRESS,stoneValue)
         // 自己显示X，否则显示O
-        return stoneValue === account ? 'X' : 'O'
+        return stoneValue.toString().toLowerCase() == account.toString().toLowerCase() ? 'X' : 'O'
     }
 
     render() {

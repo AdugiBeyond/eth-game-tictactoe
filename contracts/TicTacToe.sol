@@ -1,7 +1,7 @@
 pragma solidity ^0.4.24;
 
 contract TicTacToe {
-    uint constant GAME_COST = 10 ether;
+    uint constant GAME_COST = 1 ether;
     uint8 constant GAME_BOARD_SIZE = 3;
     uint constant TIME_INTERVAL = 1 minutes;
 
@@ -16,10 +16,10 @@ contract TicTacToe {
     uint withDrawBalance2;  //用户2余额
     uint timeValid;
 
-    event PlayerJoined(address player); // 玩家加入事件
-    event NextPlayer(address player);   // 下一个玩家
-    event GameOver(address win);    // 游戏结束事件
-    event paySuccess(address to, uint balance); // 支付成功
+    event GameStart(address player1,address player2); // 玩家加入事件
+    event NextPlayer(address nextPlayer);   // 下一个玩家
+    event GameOver(address winner);    // 游戏结束事件
+    event Withdraw(address to, uint balance); // 支付成功
 
     constructor() public payable{
         require(msg.value == GAME_COST);
@@ -32,13 +32,13 @@ contract TicTacToe {
     // 加入游戏
     function joinGame() public payable {
         require(msg.value == GAME_COST);
-        require(player1 != msg.sender);
+//        require(player1 != msg.sender);
         require(player2 == address(0));
         player2 = msg.sender;
         gameActive = true;
 
         // 发送消息
-        emit PlayerJoined(msg.sender);
+        emit GameStart(player1,msg.sender);
 
         //时间判断
         timeValid = now + TIME_INTERVAL;
@@ -155,7 +155,7 @@ contract TicTacToe {
                 withDrawBalance2 = payBalance;
             }
         } else {
-           emit paySuccess(player, payBalance);
+           emit Withdraw(player, payBalance);
         }
     }
 
@@ -171,14 +171,14 @@ contract TicTacToe {
         if (!player1.send(GAME_COST)) {
             withDrawBalance1 = payBalance;
         } else {
-            emit paySuccess(player1, payBalance);
+            emit Withdraw(player1, payBalance);
         }
 
         // 用户2 提现
         if (!player2.send(GAME_COST)) {
             withDrawBalance2 = payBalance;
         } else {
-           emit paySuccess(player2, payBalance);
+           emit Withdraw(player2, payBalance);
         }
     }
 
@@ -191,12 +191,12 @@ contract TicTacToe {
             player1.transfer(withDrawBalance1);
 
             // 提现消息
-            emit  paySuccess(player1, withDrawBalance1);
+            emit  Withdraw(player1, withDrawBalance1);
         } else if (msg.sender == player2) {
             require(withDrawBalance2 > 0);
             withDrawBalance2 = 0;
             player2.transfer(withDrawBalance2);
-            emit paySuccess(player2, withDrawBalance2);
+            emit Withdraw(player2, withDrawBalance2);
         }
     }
 
