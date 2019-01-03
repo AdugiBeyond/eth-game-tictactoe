@@ -24,6 +24,7 @@ export default class Square extends React.Component {
     // 状态变量未Object,可以不写默认值，
     state = {}
 
+    // 点击事件
     onItemClick(event) {
         let errMsg = this.mustCheck()
         if (errMsg != "") {
@@ -31,7 +32,7 @@ export default class Square extends React.Component {
             alert(errMsg)
             return
         }
-
+        // 引用点击
         this.state.onClick(this.state.stone);
         // 设置 修改
         event.target.className += " animated rubberBand square-container-active";

@@ -32,7 +32,6 @@ class Board extends React.Component {
         gameResult: '', // 游戏结果，
     }
 
-    // 获取合约
     getTicTacToe = () => {
         let TicTacToe = contract(_TicTacToe)
         TicTacToe.setProvider(web3.currentProvider);
@@ -56,7 +55,6 @@ class Board extends React.Component {
         this.unRegistNextPlayerEvent()
     }
 
-    // 点击创建游戏
     onCreateGameClick = () => {
 
         const {accounts} = this.state
@@ -82,11 +80,9 @@ class Board extends React.Component {
         let {accounts} = this.state;
         let TicTacToe = this.getTicTacToe()
         try {
-            // 获取合约实例
             let instance = await TicTacToe.at(gameAddress)
             console.log("at", instance == null, instance)
 
-            // 更新状态，监听事件
             this.setState({instance})
             this.registEvent()
             alert("游戏加载成功，加入赌金立即开始游戏")
@@ -105,7 +101,6 @@ class Board extends React.Component {
         let {instance, accounts} = this.state
         instance.getBoard.call({from: accounts[0]})
             .then(board => {
-                // 更新面板
                 this.setState({board})
                 console.log("updateBoard", board)
             })
@@ -114,7 +109,6 @@ class Board extends React.Component {
             })
     }
 
-    // 设置棋盘
     onStoneClick = (stone) => {
         console.log("onStoneClick", stone)
         let {instance, accounts} = this.state
@@ -122,7 +116,6 @@ class Board extends React.Component {
             .then(result => {
                 console.log("setStone", result)
                 // this.handleLog(result.logs)
-                // 通过事件，也可以直接处理log
             })
             .catch(error => {
                 console.error("setStone", error)
@@ -134,7 +127,6 @@ class Board extends React.Component {
         window.location.reload()
     }
 
-    // 设置赢家
     setWinner = (winner) => {
         let gameResult = ""
         if (winner === this.state.player1) {

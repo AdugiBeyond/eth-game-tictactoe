@@ -32,7 +32,7 @@ contract TicTacToe {
     // 加入游戏
     function joinGame() public payable {
         require(msg.value == GAME_COST);
-//        require(player1 != msg.sender);
+        require(player1 != msg.sender);
         require(player2 == address(0));
         player2 = msg.sender;
         gameActive = true;
@@ -58,14 +58,18 @@ contract TicTacToe {
     }
 
     function setPosition(uint8 x, uint8 y) public {
-        require(board[x][y] == address(0));
         // 该位置未设置过
-        require(timeValid > now);
+        require(board[x][y] == address(0));
+
         // 时间判断
-        require(msg.sender == activePlayer);
+        require(timeValid > now);
+
         //当前玩家
-        assert(x < GAME_BOARD_SIZE && y < GAME_BOARD_SIZE);
+        require(msg.sender == activePlayer);
+
         // 正确的位置
+        assert(x < GAME_BOARD_SIZE && y < GAME_BOARD_SIZE);
+        // 游戏开始中
         assert(gameActive);
 
         board[x][y] = msg.sender;
