@@ -79,3 +79,16 @@ npm start
 
 
 
+# 注意
+
+由于google浏览器，开启两个窗口，当切换metamask用户时，页面会自动刷新，
+
+请另开一个Firefox浏览器，安装metamask 链接并导入账户
+
+
+
+player1 google浏览器
+
+player2 Firefox浏览器
+
+即可
